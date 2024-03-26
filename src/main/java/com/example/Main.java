@@ -48,12 +48,15 @@ public class Main {
                 .flatMap(new JoinSplit())
                 .collect(toList());
 
+        refCounts(inputBuffers, "input, before release");
+        refCounts(outputBuffers, "outputs, before any release");
         releaseAll(inputBuffers, "input");
-        refCounts(inputBuffers, "input"); // expected; every input has a reference count of 0.
+        refCounts(inputBuffers, "input, after release"); // expected; every input has a reference count of 0.
 
-        refCounts(outputBuffers, "outputs"); // expected; reference counts have varied values.
-        releaseAll(outputBuffers, "outputs");
-        refCounts(outputBuffers, "outputs"); // not expected; every buffer has a reference count of 1.
+        refCounts(outputBuffers, "outputs after input release"); // expected; reference counts have varied values.
+        releaseAll(outputBuffers, "outputs"); // release the increments from the first `retainedSlice`
+        releaseAll(outputBuffers, "outputs"); // release the increments from the second `retainedSlice`
+        refCounts(outputBuffers, "outputs after output release"); // not really expected; every buffer has a reference count of 1.
 //        releaseAll(outputBuffers, "outputs"); // try to release the buffers again, and we get a "too many releases" exception.
         if (anyBufferRetained(inputBuffers, "input")) System.exit(-1);
         if (anyBufferRetained(outputBuffers, "outputs")) System.exit(-1); // fails here because at least one buffer is still retained.
@@ -72,7 +75,7 @@ public class Main {
             List<ByteBuf> out = new ArrayList<>();
             while (current.readableBytes() >= 10) {
                 out.add(current.retainedSlice(0, 10));
-                current = current.slice(10, current.readableBytes()-10);
+                current = current.retainedSlice(10, current.readableBytes()-10);
             }
             return out.stream();
         }
